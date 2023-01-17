@@ -8,29 +8,34 @@ def print_labyrinth(maze):
             print(element, end=' ')
         print()
 
-def bfs_labyrinth(maze, start, end):
+def bfs_labyrinth(maze, start, end, iterations, dead_ends, states):
     queue = deque()
     queue.append(start)
-    # Create a 2D array to keep track of visited nodes
-    visited = [[False for _ in range(len(maze[0]))] for _ in range(len(maze))]
+    visited = [[False for i in range(len(maze[0]))] for i in range(len(maze))]
     visited[start[0]][start[1]] = True
-    # Create a 2D array to store the parent of each node
-    parent = [[None for _ in range(len(maze[0]))] for _ in range(len(maze))]
-    # Array of row and column vectors for traversing the maze
+    parent = [[None for i in range(len(maze[0]))] for i in range(len(maze))]
     row = [-1, 0, 0, 1]
     col = [0, -1, 1, 0]
+    unique_nodes = set()
+    unique_nodes.add(start)
 
     while queue:
         curr = queue.popleft()
-        # If the current node is the destination, construct and return the path
+        iterations += 1
+        unvisited_neighbors = 0
         if curr == end:
-            return construct_path(parent, end)
+            return construct_path(parent, end), iterations, dead_ends, states, unique_nodes
         x, y = curr[0], curr[1]
         for i in range(4):
+            states += 1
             if is_valid(maze, x + row[i], y + col[i]) and not visited[x + row[i]][y + col[i]]:
+                unvisited_neighbors += 1
                 visited[x + row[i]][y + col[i]] = True
                 parent[x + row[i]][y + col[i]] = curr
                 queue.append((x + row[i], y + col[i]))
+                unique_nodes.add((x + row[i], y + col[i]))
+        if unvisited_neighbors == 0:
+            dead_ends += 1
     return None
 
 def is_valid(maze, x, y):
@@ -46,7 +51,7 @@ def construct_path(parent, curr):
     return construct_path(parent, parent[curr[0]][curr[1]]) + [curr]
 
 def generate_labyrinth(n, m, density):
-    maze = [['.' for _ in range(m)] for _ in range(n)]
+    maze = [['.' for i in range(m)] for i in range(n)]
     for i in range(n):
         for j in range(m):
             if random.random() < density:
@@ -64,35 +69,72 @@ def generate_labyrinth(n, m, density):
 def euclidean_distance(p1, p2):
     return sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2)
 
-def rbfs(maze, start, end):
-    visited = [[False for _ in range(len(maze[0]))] for _ in range(len(maze))]
-    parent = [[None for _ in range(len(maze[0]))] for _ in range(len(maze))]
+def rbfs(maze, start, end, iterations, dead_ends, states):
+    visited = [[False for i in range(len(maze[0]))] for i in range(len(maze))]
+    parent = [[None for i in range(len(maze[0]))] for i in range(len(maze))]
     f = euclidean_distance(start, end)
-    return rbfs_recursive(maze, start, end, f, visited, parent)
+    unique_states = set()
+    unique_states.add(start)
+    path, iterations, dead_ends, states, unique_states = rbfs_recursive(maze, start, end, f, visited, parent, iterations, dead_ends, states, unique_states)
+    return path, iterations, dead_ends, states, unique_states
 
-def rbfs_recursive(maze, curr, end, f, visited, parent):
+def rbfs_recursive(maze, curr, end, f, visited, parent, iterations, dead_ends, states, unique_states):
     visited[curr[0]][curr[1]] = True
+    # increment the counter variable
+    iterations += 1
+    states += 1
+    unique_states.add(curr)
     if curr == end:
-        return construct_path(parent, end)
-    best_f = float('inf')
-    for i in range(curr[0]-1,curr[0]+2):
-        for j in range(curr[1]-1,curr[1]+2):
-            if is_valid(maze, i, j) and not visited[i][j]:
-                parent[i][j] = curr
-                g = euclidean_distance(curr, (i, j))
-                h = euclidean_distance((i, j), end)
-                new_f = max(f, g + h)
-                path = rbfs_recursive(maze, (i, j), end, new_f, visited, parent)
-                if path is not None:
-                    return path
-                best_f = min(best_f, new_f)
-    return None
+        return construct_path(parent, end), iterations, dead_ends, states, unique_states
+    x, y = curr[0], curr[1]
+    min_f = float('inf')
+    next_node = None
+    dead_end = True
+    for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+        if is_valid(maze, x + dx, y + dy) and not visited[x + dx][y + dy]:
+            dead_end = False
+            g = euclidean_distance(curr, (x + dx, y + dy))
+            h = euclidean_distance((x + dx, y + dy), end)
+            temp_f = max(f, g + h)
+            if temp_f < min_f:
+                min_f = temp_f
+                next_node = (x + dx, y + dy)
+                parent[x + dx][y + dy] = curr
+    if dead_end:
+        dead_ends += 1
+    if not next_node:
+        return None, iterations, dead_ends, states, unique_states
+    return rbfs_recursive(maze, next_node, end, min_f, visited, parent, iterations, dead_ends, states, unique_states)
+
+def main():
+    iterations = 0
+    states = 0
+    dead_ends = 0
+    unique_states = 0
+    m = int(input('Enter the size of maze: '))
+    maze, start, end = generate_labyrinth(m, m, 0.2)
+
+    option = -1
+    while option != 1 and option != 2:
+        option = int(input('Print 1 to use BFS\nPrint 2 to use RBFS\n'))
+
+
+    if option == 1:
+        bfs_path, iterations, dead_ends, states, unique_states = bfs_labyrinth(maze, start, end, iterations, dead_ends,
+                                                                                states)
+        print(f'bfs {bfs_path}\n')
+        print_labyrinth(maze)
+
+    if option == 2:
+        rbfs_path, iterations, dead_ends, states, unique_states = rbfs(maze, start, end, iterations, dead_ends, states)
+        while rbfs_path == None:
+            maze, start, end = generate_labyrinth(m, m, 0.2)
+            rbfs_path, iterations, dead_ends, states, unique_states = rbfs(maze, start, end, iterations, dead_ends, states)
+        print(f'rbfs {rbfs_path}')
+        print_labyrinth(maze)
+
+    print(f'start: {start}, end: {end}\niterations: {iterations}\ndead ends: {dead_ends}\namount of states: {states}\nstates in memory: {len(unique_states)}')
 
 
 if __name__ == "__main__":
-    maze, start, end = generate_labyrinth(10, 20, 0.2)
-    bfs_path = bfs_labyrinth(maze, start, end)
-    rbfs_path = rbfs(maze, start, end)
-    print_labyrinth(maze)
-    print(f'bfs {bfs_path}\n')
-    print(f'rbfs {rbfs_path}')
+    main()
